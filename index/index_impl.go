@@ -119,33 +119,13 @@ func (i *Indexer) Add(doc *document.DocInfo) (err error) {
 	for _, field := range doc.Fields {
 		switch field.IndexType {
 		case document.InvertedIndexType:
-			if err = i.invertAdd(document.DocId(i.count), field); err != nil {
-				if i.aDebug != nil {
-					i.aDebug.AddDebugMsg(i.StringBuilder(256, "invert", doc.Id, field.Name, field.Value, err.Error()))
-				}
-				return err
-			}
+			i.invertAdd(document.DocId(i.count), field)
 		case document.StorageIndexType:
-			if err = i.storageAdd(document.DocId(i.count), field); err != nil {
-				if i.aDebug != nil {
-					i.aDebug.AddDebugMsg(i.StringBuilder(256, "storage", doc.Id, field.Name, field.Value, err.Error()))
-				}
-				return err
-			}
+			i.storageAdd(document.DocId(i.count), field)
 			i.kvType.Set(concurrent_map.StrKey(field.Name), field.ValueType)
 		case document.BothIndexType:
-			if err = i.invertAdd(document.DocId(i.count), field); err != nil {
-				if i.aDebug != nil {
-					i.aDebug.AddDebugMsg(i.StringBuilder(256, "invert", doc.Id, field.Name, field.Value, err.Error()))
-				}
-				return err
-			}
-			if err = i.storageAdd(document.DocId(i.count), field); err != nil {
-				if i.aDebug != nil {
-					i.aDebug.AddDebugMsg(i.StringBuilder(256, "storage", doc.Id, field.Name, field.Value, err.Error()))
-				}
-				return err
-			}
+			i.invertAdd(document.DocId(i.count), field)
+			i.storageAdd(document.DocId(i.count), field)
 			i.kvType.Set(concurrent_map.StrKey(field.Name), field.ValueType)
 		default:
 			i.WarnStatus(field.Name, field.Value, "type is wrong")
@@ -191,48 +171,41 @@ func (i *Indexer) GetDataType(fieldName string) document.FieldType {
 	return document.DefaultFieldType
 }
 
-func (i *Indexer) invertAdd(id document.DocId, field *document.Field) (err error) {
+func (i *Indexer) invertAdd(id document.DocId, field *document.Field) {
 	switch field.Value.(type) {
 	case []string:
 		value, _ := field.Value.([]string)
 		for _, v := range value {
-			if err = i.invertedIndex.Add(field.Name+SEP+v, id); err != nil {
+			if err := i.invertedIndex.Add(field.Name+SEP+v, id); err != nil {
 				i.WarnStatus(field.Name, v, err.Error())
-				return err
 			}
 		}
 	case []int64:
 		value, _ := field.Value.([]int64)
 		for _, v := range value {
-			if err = i.invertedIndex.Add(field.Name+SEP+strconv.FormatInt(v, 10), id); err != nil {
+			if err := i.invertedIndex.Add(field.Name+SEP+strconv.FormatInt(v, 10), id); err != nil {
 				i.WarnStatus(field.Name, v, err.Error())
-				return err
 			}
 		}
 	case string:
 		value, _ := field.Value.(string)
-		if err = i.invertedIndex.Add(field.Name+SEP+value, id); err != nil {
+		if err := i.invertedIndex.Add(field.Name+SEP+value, id); err != nil {
 			i.WarnStatus(field.Name, value, err.Error())
-			return err
 		}
 	case int64:
 		value, _ := field.Value.(int64)
-		if err = i.invertedIndex.Add(field.Name+SEP+strconv.FormatInt(value, 10), id); err != nil {
+		if err := i.invertedIndex.Add(field.Name+SEP+strconv.FormatInt(value, 10), id); err != nil {
 			i.WarnStatus(field.Name, value, err.Error())
-			return err
 		}
 	default:
-		return errors.New("the doc is nil or type is wrong")
+		i.WarnStatus(field.Name, field.Value, errors.New("the doc is nil or type is wrong").Error())
 	}
-	return err
 }
 
-func (i *Indexer) storageAdd(id document.DocId, field *document.Field) error {
+func (i *Indexer) storageAdd(id document.DocId, field *document.Field) {
 	if err := i.storageIndex.Add(field.Name, id, field.Value); err != nil {
 		i.WarnStatus(field.Name, field.Value, err.Error())
-		return err
 	}
-	return nil
 }
 
 func (i *Indexer) invertDel(id document.DocId) {
